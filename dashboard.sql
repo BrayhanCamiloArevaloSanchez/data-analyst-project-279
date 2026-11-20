@@ -42,7 +42,7 @@ add_cost as (
 paid_visits as (
 	select 
 		visitor_id,
-		visit_date,
+		visit_date::date as visit_date,
 		source,
 		medium,
 		campaign
