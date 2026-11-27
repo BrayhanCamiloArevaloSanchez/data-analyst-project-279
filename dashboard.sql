@@ -230,29 +230,22 @@ last_paid_visits AS (
     WHERE row_num = 1
 ),
 
-last_click as (
-	select * from (
-		select 
-			pv.visitor_id,
-			pv.visit_date,
-			pv.source,
-			pv.medium,
-			pv.campaign,
-			l.lead_id,
-			l.created_at,
-			l.amount,
-			l.closing_reason,
-			l.status_id,
-			row_number () over (
-				partition by l.lead_id
-				order by pv.visit_date desc 
-			) as row_num
-		from paid_visits pv
-		inner join leads l
-		on pv.visitor_id = l.visitor_id
-		and l.created_at >= pv.visit_date		
-	) as ranked_last_click
-where row_num = 1
+attributed_leads AS (
+    SELECT
+        lp.visitor_id,
+        lp.visit_date,
+        lp.source,
+        lp.medium,
+        lp.campaign,
+        l.lead_id,
+        l.created_at,
+        l.amount,
+        l.closing_reason,
+        l.status_id
+    FROM last_paid_visits lp
+    INNER JOIN leads l
+        ON lp.visitor_id = l.visitor_id
+       AND l.created_at >= lp.visit_date
 ),
 
 visitors_count as (
@@ -278,7 +271,7 @@ leads_succesfull as (
         medium,
         campaign,
         amount
-	from last_click
+	from attributed_leads
 where closing_reason = 'successful_sale'
 or status_id = 142
 ),
@@ -290,7 +283,7 @@ leads_count as (
         	medium,
         	campaign,   
         	COUNT (lead_id) as leads_count
-    from last_click
+    from attributed_leads
     group by 
     	visit_date::date,
     	source,
