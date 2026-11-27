@@ -207,20 +207,28 @@ paid_visits as (
 	)
 ),
 
-visitors_count as (
-	select
-		visit_date,
+last_paid_visits AS (
+    SELECT
+        visitor_id,
+        visit_date,
         source,
         medium,
-        campaign,
-        COUNT (visitor_id) AS visitors_count
-    from paid_visits
-    group by 
-    	visit_date,
-    	source,
-    	medium,
-    	campaign
-	),
+        campaign
+    FROM (
+        SELECT
+            visitor_id,
+            visit_date,
+            source,
+            medium,
+            campaign,
+            ROW_NUMBER() OVER (
+                PARTITION BY visitor_id
+                ORDER BY visit_date DESC
+            ) AS row_num
+        FROM paid_visits
+    ) AS ranked_visits
+    WHERE row_num = 1
+),
 
 last_click as (
 	select * from (
@@ -247,6 +255,21 @@ last_click as (
 where row_num = 1
 ),
 
+visitors_count as (
+	select
+		visit_date::date as visit_date,
+        source,
+        medium,
+        campaign,
+        COUNT (distinct visitor_id) as visitors_count
+    from last_paid_visits
+    group by 
+    	visit_date::date,
+    	source,
+    	medium,
+    	campaign
+	),
+
 leads_succesfull as (
 	select 
 		lead_id,
@@ -262,14 +285,14 @@ or status_id = 142
 
 leads_count as (
 	select 
-        	visit_date,
+        	visit_date::date AS visit_date,
         	source,
         	medium,
         	campaign,   
         	COUNT (lead_id) as leads_count
-    from leads_succesfull
+    from last_click
     group by 
-    	visit_date,
+    	visit_date::date,
     	source,
     	medium,
     	campaign		
@@ -277,7 +300,7 @@ leads_count as (
 
 purchases as (
 	 select
-        visit_date,
+        visit_date::date AS visit_date,
         source,
         medium,
         campaign,
@@ -285,7 +308,7 @@ purchases as (
         SUM(amount) as revenue
     from leads_succesfull
     group by
-        visit_date,
+        visit_date::date,
         source,
         medium,
         campaign
@@ -298,7 +321,7 @@ SELECT
     vc.source AS utm_source,
     vc.medium AS utm_medium,
     vc.campaign AS utm_campaign,
-    COALESCE(ac.total_cost, 0) AS total_cost,
+    ac.total_cost AS total_cost,
     COALESCE(lc.leads_count, 0) AS leads_count,
     COALESCE(p.purchases_count, 0) AS purchases_count,
     COALESCE(p.revenue, 0) AS revenue
